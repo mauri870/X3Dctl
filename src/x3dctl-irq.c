@@ -14,7 +14,7 @@ int irq_is_gpu_line(const char *line)
     );
 }
 
-void irq_steer_gpu_irqs(const cpu_set_t *target_mask)
+static void steer_irqs(const cpu_set_t *target_mask, int gpu_only)
 {
     if (!target_mask)
         return;
@@ -29,7 +29,7 @@ void irq_steer_gpu_irqs(const cpu_set_t *target_mask)
     topology_cpuset_to_hexmask(target_mask, hexmask, sizeof(hexmask));
 
     while (fgets(line, sizeof(line), f)) {
-        if (!irq_is_gpu_line(line))
+        if (gpu_only && !irq_is_gpu_line(line))
             continue;
 
         char *colon = strchr(line, ':');
@@ -55,6 +55,65 @@ void irq_steer_gpu_irqs(const cpu_set_t *target_mask)
     }
 
     fclose(f);
+}
+
+void irq_steer_gpu_irqs(const cpu_set_t *target_mask)
+{
+    steer_irqs(target_mask, 1);
+}
+
+void irq_steer_all_irqs(const cpu_set_t *target_mask)
+{
+    steer_irqs(target_mask, 0);
+}
+
+void irq_watcher_stop(void)
+{
+    FILE *pf = fopen(WATCHER_PIDFILE, "r");
+    if (!pf)
+        return;
+
+    pid_t watcher;
+    if (fscanf(pf, "%d", &watcher) == 1)
+        kill(watcher, SIGTERM);
+    fclose(pf);
+    unlink(WATCHER_PIDFILE);
+}
+
+void irq_watcher_start(const cpu_set_t *target_mask)
+{
+    if (!target_mask)
+        return;
+
+    irq_watcher_stop();
+
+    pid_t child = fork();
+    if (child < 0)
+        return;
+
+    if (child > 0) {
+        FILE *pf = fopen(WATCHER_PIDFILE, "w");
+        if (pf) {
+            fprintf(pf, "%d\n", child);
+            fclose(pf);
+        }
+        return;
+    }
+
+    /* Detach from parent's session so we survive sudo's exit */
+    setsid();
+
+    /* Pin to target_mask (freq CCD) so we never compete with game threads */
+    sched_setaffinity(0, sizeof(cpu_set_t), target_mask);
+
+    fclose(stdin);
+    fclose(stdout);
+    fclose(stderr);
+
+    while (1) {
+        sleep(2);
+        steer_irqs(target_mask, 0);
+    }
 }
 
 int irq_read_mask(int irq, char *buf, size_t size)

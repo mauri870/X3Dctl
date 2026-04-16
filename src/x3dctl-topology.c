@@ -52,9 +52,29 @@ int topology_init(struct x3d_topology *topo)
 
     closedir(dir);
 
-    /* Preserve v1.3.0 single-CCD fallback behavior */
-    if (CPU_COUNT(&topo->cache_mask) == 0 && CPU_COUNT(&topo->freq_mask) > 0) {
+    if (CPU_COUNT(&topo->cache_mask) == 0 && CPU_COUNT(&topo->freq_mask) > 0)
         topo->cache_mask = topo->freq_mask;
+
+    /* Exclude CPU 0's entire physical core (BSP + SMT sibling).
+     * CPU 0 is outside nohz_full, handles scheduler ticks and RCU callbacks.
+     * Its SMT sibling shares execution units, causing contention. */
+    if (CPU_ISSET(0, &topo->cache_mask) && CPU_COUNT(&topo->cache_mask) > 1) {
+        snprintf(path, sizeof(path),
+                 "%s/cpu0/topology/thread_siblings_list", CPU_BASE);
+        FILE *f = fopen(path, "r");
+        if (f) {
+            char buf[64];
+            if (fgets(buf, sizeof(buf), f)) {
+                char *tok = strtok(buf, ",\n");
+                while (tok) {
+                    int sibling = atoi(tok);
+                    if (sibling < CPU_SETSIZE && CPU_COUNT(&topo->cache_mask) > 1)
+                        CPU_CLR(sibling, &topo->cache_mask);
+                    tok = strtok(NULL, ",\n");
+                }
+            }
+            fclose(f);
+        }
     }
 
     topo->initialized = 1;
@@ -85,7 +105,8 @@ void topology_cpuset_to_hexmask(const cpu_set_t *set, char *out, size_t out_size
     const int total_bits = CPU_SETSIZE;
     const int chunks = (total_bits + bits_per_chunk - 1) / bits_per_chunk;
 
-    uint32_t words[chunks];
+    /* Fixed size: CPU_SETSIZE(1024) / 32 = 32 chunks max */
+    uint32_t words[32];
     memset(words, 0, sizeof(words));
 
     for (int cpu = 0; cpu < total_bits; cpu++) {

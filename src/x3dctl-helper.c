@@ -140,10 +140,12 @@ int main(int argc, char *argv[])
         cpu_set_t full_mask;
         topology_build_full_mask(&topo, &full_mask);
 
-        if (disable_irq)
-            irq_steer_gpu_irqs(&full_mask);
-        else
-            irq_steer_gpu_irqs(&topo.freq_mask);
+        if (disable_irq) {
+            irq_steer_all_irqs(&full_mask);
+        } else {
+            irq_steer_all_irqs(&topo.freq_mask);
+            irq_watcher_start(&topo.freq_mask);
+        }
 
         return 0;
     }
@@ -152,12 +154,10 @@ int main(int argc, char *argv[])
         if (helper_require_control_privilege(argv[0]) != 0)
             return 1;
 
-        int disable_irq = 0;
-
-        if (argc == 3 && strcmp(argv[2], "--no-irq") == 0)
-            disable_irq = 1;
-        else if (argc > 2)
+        if (argc > 2)
             return 1;
+
+        irq_watcher_stop();
 
         if (x3d_write_mode(sysfs_path, "frequency") != 0)
             return 1;
@@ -168,8 +168,7 @@ int main(int argc, char *argv[])
         cpu_set_t full_mask;
         topology_build_full_mask(&topo, &full_mask);
 
-        (void)disable_irq;
-        irq_steer_gpu_irqs(&full_mask);
+        irq_steer_all_irqs(&full_mask);
 
         return 0;
     }

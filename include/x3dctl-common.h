@@ -20,9 +20,11 @@
 #include <linux/ioprio.h>
 #include <sys/syscall.h>
 #include <sys/capability.h>
+#include <signal.h>
 
-#define SYSFS_BASE   "/sys/bus/platform/drivers/amd_x3d_vcache"
-#define CPU_BASE     "/sys/devices/system/cpu"
-#define CONFIG_PATH  "/etc/x3dctl.conf"
+#define SYSFS_BASE      "/sys/bus/platform/drivers/amd_x3d_vcache"
+#define CPU_BASE        "/sys/devices/system/cpu"
+#define CONFIG_PATH     "/etc/x3dctl.conf"
+#define WATCHER_PIDFILE "/run/x3dctl-irq-watcher.pid"
 
 #endif 
