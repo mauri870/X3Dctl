@@ -154,7 +154,11 @@ int main(int argc, char *argv[])
         if (helper_require_control_privilege(argv[0]) != 0)
             return 1;
 
-        if (argc > 2)
+        int disable_irq = 0;
+
+        if (argc == 3 && strcmp(argv[2], "--no-irq") == 0)
+            disable_irq = 1;
+        else if (argc > 2)
             return 1;
 
         irq_watcher_stop();
@@ -162,13 +166,15 @@ int main(int argc, char *argv[])
         if (x3d_write_mode(sysfs_path, "frequency") != 0)
             return 1;
 
-        if (topology_init(&topo) != 0)
-            return 1;
+        if (!disable_irq) {
+            if (topology_init(&topo) != 0)
+                return 1;
 
-        cpu_set_t full_mask;
-        topology_build_full_mask(&topo, &full_mask);
+            cpu_set_t full_mask;
+            topology_build_full_mask(&topo, &full_mask);
 
-        irq_steer_all_irqs(&full_mask);
+            irq_steer_all_irqs(&full_mask);
+        }
 
         return 0;
     }
