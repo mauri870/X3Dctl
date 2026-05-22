@@ -21,6 +21,7 @@
 #include <sys/syscall.h>
 #include <sys/capability.h>
 #include <signal.h>
+#include <fcntl.h>
 
 #define SYSFS_BASE      "/sys/bus/platform/drivers/amd_x3d_vcache"
 #define CPU_BASE        "/sys/devices/system/cpu"

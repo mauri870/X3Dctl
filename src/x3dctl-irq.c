@@ -106,6 +106,20 @@ void irq_watcher_start(const cpu_set_t *target_mask)
     /* Pin to target_mask (freq CCD) so we never compete with game threads */
     sched_setaffinity(0, sizeof(cpu_set_t), target_mask);
 
+    /*
+     * Hold /dev/cpu_dma_latency open at 0 for the lifetime of this process.
+     * This prevents the CPU from entering deep C-states (C2+) while gaming
+     * mode is active, eliminating the wake-up latency penalty on the next
+     * interrupt or scheduler tick. Restored automatically when this process
+     * exits (i.e. when irq_watcher_stop() kills us).
+     */
+    int latency_fd = open("/dev/cpu_dma_latency", O_WRONLY);
+    if (latency_fd >= 0) {
+        uint32_t target_latency = 0;
+        (void)write(latency_fd, &target_latency, sizeof(target_latency));
+        /* intentionally not closed — held for process lifetime */
+    }
+
     fclose(stdin);
     fclose(stdout);
     fclose(stderr);
