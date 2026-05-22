@@ -64,6 +64,15 @@ static int helper_require_control_privilege(const char *argv0)
     return 1;
 }
 
+static void set_timer_migration(int value)
+{
+    FILE *f = fopen("/proc/sys/kernel/timer_migration", "w");
+    if (!f)
+        return;
+    fprintf(f, "%d", value);
+    fclose(f);
+}
+
 int main(int argc, char *argv[])
 {
     struct x3d_topology topo = {0};
@@ -134,6 +143,8 @@ int main(int argc, char *argv[])
         if (x3d_write_mode(sysfs_path, "cache") != 0)
             return 1;
 
+        set_timer_migration(0);
+
         if (topology_init(&topo) != 0)
             return 1;
 
@@ -162,6 +173,7 @@ int main(int argc, char *argv[])
             return 1;
 
         irq_watcher_stop();
+        set_timer_migration(1);
 
         if (x3d_write_mode(sysfs_path, "frequency") != 0)
             return 1;
