@@ -55,28 +55,6 @@ int topology_init(struct x3d_topology *topo)
     if (CPU_COUNT(&topo->cache_mask) == 0 && CPU_COUNT(&topo->freq_mask) > 0)
         topo->cache_mask = topo->freq_mask;
 
-    /* Exclude CPU 0's entire physical core (BSP + SMT sibling).
-     * CPU 0 is outside nohz_full, handles scheduler ticks and RCU callbacks.
-     * Its SMT sibling shares execution units, causing contention. */
-    if (CPU_ISSET(0, &topo->cache_mask) && CPU_COUNT(&topo->cache_mask) > 1) {
-        snprintf(path, sizeof(path),
-                 "%s/cpu0/topology/thread_siblings_list", CPU_BASE);
-        FILE *f = fopen(path, "r");
-        if (f) {
-            char buf[64];
-            if (fgets(buf, sizeof(buf), f)) {
-                char *tok = strtok(buf, ",\n");
-                while (tok) {
-                    int sibling = atoi(tok);
-                    if (sibling < CPU_SETSIZE && CPU_COUNT(&topo->cache_mask) > 1)
-                        CPU_CLR(sibling, &topo->cache_mask);
-                    tok = strtok(NULL, ",\n");
-                }
-            }
-            fclose(f);
-        }
-    }
-
     topo->initialized = 1;
     return 0;
 }
